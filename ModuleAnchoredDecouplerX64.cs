@@ -1,49 +1,72 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
+using UnityEngine;
 
 namespace DecoupleForX64
 {
     class ModuleAnchoredDecouplerX64 : ModuleAnchoredDecoupler
     {
-        bool doForce = false;
+        AttachNode attachNode;
+        Part cloupledPart;
+        bool didForce = false;
+        int pFrameCount;
 
-        [KSPAction("Decouple")]
-        public new void DecoupleAction(KSPActionParam param)
+        public override void OnStart(PartModule.StartState state)
         {
-            doForce = true;
-        }
-
-        [KSPEvent(guiName = "Decouple", guiActive = true)]
-        public new void Decouple()
-        {
-            doForce = true;
-        }
-
-        public new void OnDecouple()
-        {
-            doForce = true;
-        }
-
-        public override void OnActive()
-        {
-            if (base.staged)
+            if (this.explosiveNodeID == "srf")
             {
-                doForce = true;
+                this.attachNode = base.part.srfAttachNode;
             }
+            else
+            {
+                this.attachNode = base.part.findAttachNode(this.explosiveNodeID);
+            }
+            if (this.attachNode == null)
+            {
+                Print("Error: No attachnode found with id " + this.explosiveNodeID);
+            }
+            didForce = this.isDecoupled;
+            base.OnStart(state);
         }
 
         public void FixedUpdate()
         {
-            if (!this.isDecoupled && doForce)
+            if (!this.isDecoupled)
             {
-                print("[ModuleAnchoredDecouplerX64] ejectionForce " + this.ejectionForce);
-
-                this.ejectionForce = this.ejectionForce * 100;
-                base.OnDecouple();
+                if (this.attachNode.attachedPart != null && !(this.attachNode.attachedPart == null))
+                {
+                    cloupledPart = this.attachNode.attachedPart;
+                }
+                pFrameCount = 1;
             }
-            doForce = false;
+            else if (!didForce)
+            {
+                if (pFrameCount != 0)
+                {
+                    //Print("Waiting for 1 more physic frame");
+                    pFrameCount--;
+                }
+                else
+                {
+                    if (cloupledPart != null)
+                    {
+                        float force = this.ejectionForce * 0.5f;
+                        Print("Force = " + force);
+                        base.part.rigidbody.AddForceAtPosition(base.part.transform.right * -force, base.part.transform.position, ForceMode.Force);
+                        cloupledPart.Rigidbody.AddForceAtPosition(base.transform.right * force, base.transform.position, ForceMode.Force);
+                    }
+
+                    didForce = true;
+                }
+            }
         }
+
+        private static void Print(String s)
+        {
+            MonoBehaviour.print("[ModuleAnchoredDecouplerX64] " + s);
+        }
+
+
     }
 }
